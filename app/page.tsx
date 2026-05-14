@@ -240,10 +240,10 @@ export default function NetflopDashboard() {
               <div>
                 <label className="block text-xs text-zinc-500 mb-2 font-bold uppercase tracking-wider">Số tiền (VND)</label>
                 <input 
-                  type="number" 
+                  type="text" 
                   inputMode="numeric"
-                  value={paymentAmount}
-                  onChange={(e) => setPaymentAmount(e.target.value)}
+                  value={Number(paymentAmount).toLocaleString('vi-VN')}
+                  onChange={(e) => setPaymentAmount(e.target.value.replace(/\D/g, ''))}
                   className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-xl md:text-2xl font-black focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
                 />
               </div>
@@ -255,7 +255,7 @@ export default function NetflopDashboard() {
                     onClick={() => setPaymentAmount(val.toString())}
                     className="bg-white/5 hover:bg-zinc-800 py-3 rounded-xl text-xs font-bold transition-colors border border-white/5"
                   >
-                    {val/1000}k
+                    {val.toLocaleString('vi-VN')}
                   </button>
                 ))}
               </div>
