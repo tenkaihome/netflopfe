@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { 
   Users, 
   CreditCard, 
@@ -8,7 +8,10 @@ import {
   AlertCircle, 
   History,
   DollarSign,
-  Settings
+  Settings,
+  Plus,
+  Trash2,
+  ClipboardList
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
@@ -35,6 +38,9 @@ export default function NetflopDashboard() {
   const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [editForm, setEditForm] = useState({ name: "", initialBalance: "0", startDate: "" });
   const [isClient, setIsClient] = useState(false);
+  const [activeTab, setActiveTab] = useState<'members' | 'history'>('members');
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [newMemberName, setNewMemberName] = useState('');
 
   // Persistence
   useEffect(() => {
@@ -83,8 +89,36 @@ export default function NetflopDashboard() {
     }
   };
 
+  const addNewMember = async () => {
+    if (!newMemberName.trim()) return;
+    try {
+      await api.addMember(newMemberName, new Date().toISOString().split('T')[0]);
+      await fetchMembers();
+      setIsAddModalOpen(false);
+      setNewMemberName('');
+    } catch (error) {
+      console.error("Failed to add member:", error);
+    }
+  };
+
+  const removeMember = async (id: string) => {
+    if (!confirm("Xóa thành viên này? Tất cả lịch sử thanh toán sẽ bị mất.")) return;
+    try {
+      await api.deleteMember(id);
+      await fetchMembers();
+      setIsEditModalOpen(false);
+      setEditingMember(null);
+    } catch (error) {
+      console.error("Failed to delete member:", error);
+    }
+  };
+
   const totalCollected = members.reduce((sum, m) => sum + calculateStatus(m).totalPaid, 0);
-  const totalOwed = members.reduce((sum, m) => sum + calculateStatus(m).totalOwed, 0);
+  // Phí thu: chỉ tính những người đang nợ
+  const totalToCollect = members.reduce((sum, m) => {
+    const status = calculateStatus(m);
+    return sum + (status.isOverdue ? Math.abs(status.balance) : 0);
+  }, 0);
 
   if (!isClient) return <div className="min-h-screen bg-black" />;
 
@@ -113,8 +147,8 @@ export default function NetflopDashboard() {
             />
             <StatCard 
               icon={<AlertCircle className="text-red-500" size={16} />}
-              label="Phí gốc"
-              value={formatCurrency(totalOwed)}
+              label="Phí thu"
+              value={formatCurrency(totalToCollect)}
             />
           </div>
           
@@ -148,29 +182,50 @@ export default function NetflopDashboard() {
         </div>
       </header>
 
-      {/* Main Grid */}
-      <main className="max-w-6xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-        {members.map((member, index) => (
-          <MemberCard 
-            key={member.id} 
-            member={member} 
-            index={index}
-            onAddPayment={() => {
-              setSelectedMember(member);
-              setIsPaymentModalOpen(true);
-            }}
-            onEdit={() => {
-              setEditingMember(member);
-              setEditForm({
-                name: member.name,
-                initialBalance: member.initialBalance.toString(),
-                startDate: member.startDate.split('T')[0]
-              });
-              setIsEditModalOpen(true);
-            }}
-          />
-        ))}
-      </main>
+      {/* Tabs */}
+      <div className="max-w-6xl mx-auto mb-6 flex items-center gap-3">
+        <button onClick={() => setActiveTab('members')} className={cn("px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all", activeTab === 'members' ? "bg-primary text-white" : "bg-white/5 text-zinc-500 hover:bg-white/10")}>
+          <Users size={14} className="inline mr-2 -mt-0.5" />Thành viên
+        </button>
+        <button onClick={() => setActiveTab('history')} className={cn("px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all", activeTab === 'history' ? "bg-primary text-white" : "bg-white/5 text-zinc-500 hover:bg-white/10")}>
+          <ClipboardList size={14} className="inline mr-2 -mt-0.5" />Lịch sử thu
+        </button>
+        {activeTab === 'members' && (
+          <button onClick={() => setIsAddModalOpen(true)} className="ml-auto bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-xl font-black text-xs transition-all active:scale-95 flex items-center gap-1">
+            <Plus size={16} />THÊM
+          </button>
+        )}
+      </div>
+
+      {/* Main Content */}
+      {activeTab === 'members' ? (
+        <main className="max-w-6xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+          {members.map((member, index) => (
+            <MemberCard 
+              key={member.id} 
+              member={member} 
+              index={index}
+              onAddPayment={() => {
+                setSelectedMember(member);
+                const status = calculateStatus(member);
+                setPaymentAmount(status.isOverdue ? Math.abs(status.balance).toString() : MONTHLY_FEE.toString());
+                setIsPaymentModalOpen(true);
+              }}
+              onEdit={() => {
+                setEditingMember(member);
+                setEditForm({
+                  name: member.name,
+                  initialBalance: member.initialBalance.toString(),
+                  startDate: member.startDate.split('T')[0]
+                });
+                setIsEditModalOpen(true);
+              }}
+            />
+          ))}
+        </main>
+      ) : (
+        <HistoryTab members={members} />
+      )}
 
       {/* Modals */}
       <AnimatePresence>
@@ -295,11 +350,46 @@ export default function NetflopDashboard() {
                 </div>
               )}
 
+              <div className="flex gap-2 mt-4 sticky bottom-0">
+                <button 
+                  onClick={updateMember}
+                  className="flex-1 bg-white text-black hover:bg-zinc-200 py-4 rounded-xl font-black text-lg transition-all active:scale-95"
+                >
+                  LƯU THAY ĐỔI
+                </button>
+                <button 
+                  onClick={() => editingMember && removeMember(editingMember.id)}
+                  className="bg-red-600 hover:bg-red-700 text-white px-5 py-4 rounded-xl transition-all active:scale-95"
+                >
+                  <Trash2 size={20} />
+                </button>
+              </div>
+            </div>
+          </Modal>
+        )}
+
+        {isAddModalOpen && (
+          <Modal onClose={() => setIsAddModalOpen(false)}>
+            <h2 className="text-xl md:text-2xl font-bold mb-6 flex items-center gap-2">
+              <Plus className="text-green-500" />
+              Thêm thành viên
+            </h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs text-zinc-500 mb-2 font-bold uppercase tracking-wider">Tên thành viên</label>
+                <input 
+                  type="text" 
+                  value={newMemberName}
+                  onChange={(e) => setNewMemberName(e.target.value)}
+                  placeholder="Ví dụ: Nguyễn Văn A"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl p-4 font-bold focus:border-green-500 outline-none"
+                />
+              </div>
               <button 
-                onClick={updateMember}
-                className="w-full bg-white text-black hover:bg-zinc-200 py-4 rounded-xl font-black text-lg mt-4 transition-all sticky bottom-0 active:scale-95"
+                onClick={addNewMember}
+                className="w-full bg-green-600 hover:bg-green-700 py-4 rounded-xl font-black text-lg transition-all active:scale-95"
               >
-                LƯU THAY ĐỔI
+                THÊM THÀNH VIÊN
               </button>
             </div>
           </Modal>
@@ -310,8 +400,25 @@ export default function NetflopDashboard() {
 }
 
 function Modal({ children, onClose }: { children: React.ReactNode, onClose: () => void }) {
+  const touchStartY = useRef(0);
+  const modalRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = ''; };
+  }, []);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartY.current = e.touches[0].clientY;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    const diff = e.changedTouches[0].clientY - touchStartY.current;
+    if (diff > 80) onClose();
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center md:items-center justify-center md:p-4">
+    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center md:p-4">
       <motion.div 
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -320,10 +427,13 @@ function Modal({ children, onClose }: { children: React.ReactNode, onClose: () =
         className="absolute inset-0 bg-black/90 backdrop-blur-md"
       />
       <motion.div 
-        initial={{ opacity: 0, scale: 0.95, y: 100 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 100 }}
-        className="glass relative w-full md:max-w-md rounded-t-[2.5rem] md:rounded-[2.5rem] p-8 border-white/10 overflow-hidden mt-auto md:mt-0"
+        ref={modalRef}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        initial={{ opacity: 0, y: 100 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 100 }}
+        className="glass relative w-full md:max-w-md rounded-t-[2.5rem] md:rounded-[2.5rem] p-8 border-white/10 overflow-hidden max-h-[90vh] md:max-h-[80vh] overflow-y-auto custom-scrollbar"
       >
         <div className="absolute top-2 left-1/2 -translate-x-1/2 w-12 h-1 bg-white/20 rounded-full md:hidden" />
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary to-transparent" />
@@ -379,7 +489,7 @@ function MemberCard({ member, index, onAddPayment, onEdit }: { member: Member, i
         </div>
       </div>
 
-      <div className="space-y-4 md:y-5 mb-6 md:mb-8 relative">
+      <div className="space-y-4 mb-6 md:mb-8 relative">
         <div className="flex justify-between items-end">
           <span className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest">Hiện tại</span>
           <span className={cn(
@@ -425,9 +535,68 @@ function MemberCard({ member, index, onAddPayment, onEdit }: { member: Member, i
           onClick={onEdit}
           className="flex-1 bg-white/5 hover:bg-zinc-800 rounded-2xl flex items-center justify-center transition-all border border-white/5 active:scale-95"
         >
-          <Settings size={18} className="text-zinc-600 group-hover:rotate-90 transition-transform duration-500" />
+          <Settings size={18} className="text-zinc-600" />
         </button>
       </div>
     </motion.div>
+  );
+}
+
+function HistoryTab({ members }: { members: Member[] }) {
+  const allPayments = members.flatMap(m => 
+    m.payments.map(p => ({ ...p, memberName: m.name, memberId: m.id }))
+  ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+  if (allPayments.length === 0) {
+    return (
+      <div className="max-w-6xl mx-auto text-center py-20 text-zinc-600">
+        <ClipboardList size={48} className="mx-auto mb-4 opacity-30" />
+        <p className="font-bold">Chưa có lịch sử thu tiền nào</p>
+      </div>
+    );
+  }
+
+  // Nhóm theo tháng
+  const grouped: Record<string, typeof allPayments> = {};
+  allPayments.forEach(p => {
+    const d = new Date(p.date);
+    const key = `${(d.getMonth()+1).toString().padStart(2,'0')}/${d.getFullYear()}`;
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(p);
+  });
+
+  return (
+    <div className="max-w-6xl mx-auto space-y-6">
+      {Object.entries(grouped).map(([month, payments]) => {
+        const totalMonth = payments.reduce((s, p) => s + p.amount, 0);
+        return (
+          <div key={month} className="glass rounded-2xl border-white/5 overflow-hidden">
+            <div className="flex justify-between items-center px-6 py-4 border-b border-white/5">
+              <h3 className="font-black text-sm uppercase tracking-wider">Tháng {month}</h3>
+              <div className="text-right">
+                <p className="text-[10px] text-zinc-600 uppercase font-bold">Tổng thu</p>
+                <p className="font-black text-green-500">{formatCurrency(totalMonth)}</p>
+              </div>
+            </div>
+            <div className="divide-y divide-white/5">
+              {payments.map((p, i) => (
+                <div key={`${p.id}-${i}`} className="flex justify-between items-center px-6 py-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center">
+                      <Users size={14} className="text-zinc-600" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-sm">{p.memberName}</p>
+                      <p className="text-[10px] text-zinc-600">{new Date(p.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                    </div>
+                  </div>
+                  <p className="font-black text-green-500">+{formatCurrency(p.amount)}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
