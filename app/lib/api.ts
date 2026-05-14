@@ -1,6 +1,6 @@
 import { Member, Payment } from "./utils";
 
-const API_BASE = "http://localhost:4000/api";
+const API_BASE = "https://netflopbe.vercel.app/api";
 
 export const api = {
   getMembers: async (): Promise<Member[]> => {
@@ -27,8 +27,8 @@ export const api = {
   },
 
   deletePayment: async (id: string, memberId: string): Promise<void> => {
-    await fetch(`${API_BASE}/payments/${id}?memberId=${memberId}`, { 
-      method: "DELETE" 
+    await fetch(`${API_BASE}/payments/${id}?memberId=${memberId}`, {
+      method: "DELETE"
     });
   }
 };
