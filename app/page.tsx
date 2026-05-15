@@ -125,10 +125,52 @@ export default function NetflopDashboard() {
   }, 0);
 
   if (!isClient || isLoading) return (
-    <div className="min-h-screen bg-black flex items-center justify-center">
-      <div className="text-center">
-        <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-        <p className="text-zinc-500 text-sm font-bold uppercase tracking-wider">Đang tải dữ liệu...</p>
+    <div className="min-h-screen bg-black text-white p-4 md:p-8">
+      {/* Skeleton Header */}
+      <div className="max-w-6xl mx-auto mb-8 md:mb-12 flex flex-col md:flex-row md:items-end justify-between gap-6">
+        <div>
+          <div className="h-12 w-56 bg-white/5 rounded-2xl animate-pulse mb-2" />
+          <div className="h-4 w-40 bg-white/5 rounded-lg animate-pulse" />
+        </div>
+        <div className="flex gap-3">
+          <div className="h-14 w-36 bg-white/5 rounded-2xl animate-pulse" />
+          <div className="h-14 w-36 bg-white/5 rounded-2xl animate-pulse" />
+        </div>
+      </div>
+      {/* Skeleton Tabs */}
+      <div className="max-w-6xl mx-auto mb-6 flex gap-3">
+        <div className="h-10 w-32 bg-white/5 rounded-xl animate-pulse" />
+        <div className="h-10 w-32 bg-white/5 rounded-xl animate-pulse" />
+      </div>
+      {/* Skeleton Cards */}
+      <div className="max-w-6xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="glass rounded-[2rem] p-6 md:p-7 border-white/5 animate-pulse" style={{ animationDelay: `${i * 100}ms` }}>
+            <div className="flex items-center gap-4 mb-8">
+              <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-white/5" />
+              <div className="flex-1">
+                <div className="h-5 w-24 bg-white/5 rounded-lg mb-2" />
+                <div className="h-3 w-20 bg-white/5 rounded-md" />
+              </div>
+              <div className="h-6 w-10 bg-white/5 rounded-lg" />
+            </div>
+            <div className="space-y-4 mb-8">
+              <div className="flex justify-between">
+                <div className="h-3 w-16 bg-white/5 rounded-md" />
+                <div className="h-8 w-32 bg-white/5 rounded-lg" />
+              </div>
+              <div className="h-2 w-full bg-white/5 rounded-full" />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="h-14 bg-white/5 rounded-xl" />
+                <div className="h-14 bg-white/5 rounded-xl" />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <div className="flex-[3] h-12 bg-white/5 rounded-2xl" />
+              <div className="flex-1 h-12 bg-white/5 rounded-2xl" />
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -207,7 +249,12 @@ export default function NetflopDashboard() {
       {activeTab === 'members' ? (
         <main className="max-w-6xl mx-auto">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-          {members.map((member, index) => (
+          {[...members].sort((a, b) => {
+            const sa = calculateStatus(a);
+            const sb = calculateStatus(b);
+            if (sa.isOverdue !== sb.isOverdue) return sa.isOverdue ? -1 : 1;
+            return sa.balance - sb.balance;
+          }).map((member, index) => (
             <MemberCard 
               key={member.id} 
               member={member} 
@@ -533,16 +580,25 @@ function MemberCard({ member, index, onAddPayment, onEdit }: { member: Member, i
           />
         </div>
         
-        <div className="grid grid-cols-2 gap-3 md:gap-4 text-[9px] md:text-[10px] uppercase font-black text-zinc-600 tracking-wider">
+        <div className="grid grid-cols-3 gap-2 md:gap-3 text-[9px] md:text-[10px] uppercase font-black text-zinc-600 tracking-wider">
           <div className="bg-white/5 p-2 md:p-3 rounded-xl border border-white/5">
             <p className="mb-0.5 opacity-50">Đã đóng</p>
             <p className="text-white text-xs md:text-sm">{formatCurrency(status.totalPaid)}</p>
           </div>
-          <div className="bg-white/5 p-2 md:p-3 rounded-xl border border-white/5 text-right">
+          <div className="bg-white/5 p-2 md:p-3 rounded-xl border border-white/5 text-center">
             <p className="mb-0.5 opacity-50">Chu kỳ</p>
             <p className="text-white text-xs md:text-sm">{status.monthsElapsed} thg</p>
           </div>
+          <div className="bg-white/5 p-2 md:p-3 rounded-xl border border-white/5 text-right">
+            <p className="mb-0.5 opacity-50">Thu tiếp</p>
+            <p className="text-yellow-500 text-xs md:text-sm">{(status.nextCollectionDate.getMonth()+1).toString().padStart(2,'0')}/{status.nextCollectionDate.getFullYear()}</p>
+          </div>
         </div>
+        {status.remainingBalance > 0 && (
+          <div className="bg-green-500/5 border border-green-500/10 rounded-xl px-3 py-2 text-[10px] font-bold text-green-500">
+            Còn dư {formatCurrency(status.remainingBalance)} cho tháng tiếp theo
+          </div>
+        )}
       </div>
 
       <div className="flex gap-2 relative">

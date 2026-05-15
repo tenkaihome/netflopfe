@@ -30,11 +30,8 @@ export const calculateStatus = (member: Member) => {
   // Calculate months difference
   const years = now.getFullYear() - start.getFullYear();
   const months = now.getMonth() - start.getMonth();
-  const totalMonths = Math.max(0, years * 12 + months); // Current month is considered "in progress"
+  const totalMonths = Math.max(0, years * 12 + months);
   
-  // If we want to be precise: if today's day is >= start day, it's a full month.
-  // But usually, subscription is billed at the start of the period.
-  // Let's assume billing happens on the same day every month.
   let billingCycles = totalMonths;
   if (now.getDate() >= start.getDate()) {
     billingCycles += 1;
@@ -44,11 +41,23 @@ export const calculateStatus = (member: Member) => {
   const totalPaid = member.initialBalance + member.payments.reduce((sum, p) => sum + p.amount, 0);
   const balance = totalPaid - totalOwed;
   
+  // Tính chu kỳ thu tiếp theo
+  // Số tháng đã được cover = tổng đã đóng / phí hàng tháng
+  const monthsCovered = Math.floor(totalPaid / MONTHLY_FEE);
+  // Tháng thu tiếp theo = startDate + monthsCovered tháng
+  const nextDate = new Date(start);
+  nextDate.setMonth(nextDate.getMonth() + monthsCovered);
+  // Số dư còn lại sau khi trừ hết các tháng đã cover
+  const remainingAfterCovered = totalPaid - (monthsCovered * MONTHLY_FEE);
+  
   return {
     totalOwed,
     totalPaid,
     balance,
     isOverdue: balance < 0,
-    monthsElapsed: billingCycles
+    monthsElapsed: billingCycles,
+    nextCollectionDate: nextDate,
+    monthsCovered,
+    remainingBalance: remainingAfterCovered
   };
 };
