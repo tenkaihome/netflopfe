@@ -1,0 +1,17 @@
+{
+  "name": "Netflop",
+  "short_name": "Netflop",
+  "description": "Quản lý quỹ Netflix gia đình",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#E50914",
+  "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
