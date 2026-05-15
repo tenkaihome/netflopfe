@@ -11,7 +11,9 @@ import {
   Settings,
   Plus,
   Trash2,
-  ClipboardList
+  ClipboardList,
+  ClipboardCheck,
+  Copy
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
@@ -49,6 +51,8 @@ export default function NetflopDashboard() {
   const [activeTab, setActiveTab] = useState<'members' | 'history'>('members');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newMemberName, setNewMemberName] = useState('');
+  const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
+  const [summaryText, setSummaryText] = useState('');
 
   // Persistence
   useEffect(() => {
@@ -216,25 +220,41 @@ export default function NetflopDashboard() {
           
           <button 
             onClick={() => {
-              const earliestDate = members.reduce((min, m) => {
-                const date = new Date(m.startDate);
-                return date < min ? date : min;
-              }, new Date());
-              
+              haptic();
+              const formatMY = (date: Date) => `${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()}`;
               const now = new Date();
-              const formatMonthYear = (date: Date) => `${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()}`;
+              const nowStr = formatMY(now);
+
+              // Tìm ngày bắt đầu phổ biến nhất
+              const startDates = members.map(m => formatMY(new Date(m.startDate)));
+              const commonStart = startDates.reduce((a, b, i, arr) => 
+                (arr.filter(v => v === a).length >= arr.filter(v => v === b).length ? a : b), startDates[0]
+              );
+
+              let text = `Bill Netflix\n(${commonStart} - ${nowStr}):\n\n`;
               
-              let text = `netflix từ ${formatMonthYear(earliestDate)} - ${formatMonthYear(now)} nhé:\n`;
-              members.forEach(m => {
+              const overdue = members.filter(m => calculateStatus(m).isOverdue);
+              const paid = members.filter(m => !calculateStatus(m).isOverdue);
+
+              overdue.forEach(m => {
                 const status = calculateStatus(m);
-                const statusText = status.balance >= 0 
-                  ? "Đã thu" 
-                  : `${(Math.abs(status.balance) / 1000)}k`;
-                text += `- ${m.name}: ${statusText}\n`;
+                const mStart = formatMY(new Date(m.startDate));
+                const amount = Math.abs(status.balance).toLocaleString('vi-VN');
+                text += `- ${m.name}: ${amount} đ`;
+                if (mStart !== commonStart) {
+                  text += ` (Từ ${mStart} - ${nowStr})`;
+                }
+                text += `\n`;
+              });
+
+              if (paid.length > 0) text += `\n`;
+
+              paid.forEach(m => {
+                text += `- ${m.name}: đã thu\n`;
               });
               
-              navigator.clipboard.writeText(text);
-              alert("Đã copy nội dung tổng kết vào bộ nhớ tạm!");
+              setSummaryText(text.trim());
+              setIsSummaryModalOpen(true);
             }}
             className="bg-primary hover:bg-red-700 text-white px-5 py-3 md:py-4 rounded-xl md:rounded-2xl flex items-center justify-center gap-2 font-black text-xs md:text-sm transition-all group active:scale-95 shadow-lg shadow-primary/20"
           >
@@ -472,6 +492,32 @@ export default function NetflopDashboard() {
             </div>
           </Modal>
         )}
+        {isSummaryModalOpen && (
+          <Modal onClose={() => setIsSummaryModalOpen(false)}>
+            <h2 className="text-xl md:text-2xl font-bold mb-6 flex items-center gap-2 text-primary">
+              <ClipboardCheck />
+              Xem trước tổng kết
+            </h2>
+            <div className="bg-zinc-900/50 border border-white/5 rounded-2xl p-5 mb-6">
+              <pre className="text-sm md:text-base font-medium whitespace-pre-wrap leading-relaxed text-zinc-300">
+                {summaryText}
+              </pre>
+            </div>
+            <div className="flex gap-3">
+              <button 
+                onClick={() => {
+                  haptic();
+                  navigator.clipboard.writeText(summaryText);
+                  setIsSummaryModalOpen(false);
+                }}
+                className="flex-1 bg-primary hover:bg-red-700 text-white py-4 rounded-xl font-black text-lg transition-all active:scale-95 shadow-lg shadow-primary/20 flex items-center justify-center gap-2"
+              >
+                <Copy size={20} />
+                COPY NGAY
+              </button>
+            </div>
+          </Modal>
+        )}
       </AnimatePresence>
     </div>
   );
@@ -633,11 +679,41 @@ function MemberCard({ member, index, onAddPayment, onEdit }: { member: Member, i
 }
 
 function HistoryTab({ members }: { members: Member[] }) {
-  const allPayments = members.flatMap(m => 
-    m.payments.map(p => ({ ...p, memberName: m.name, memberId: m.id }))
-  ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  // Pre-calculate ranges for each payment
+  const paymentsWithRanges = members.flatMap(m => {
+    const sortedPayments = [...m.payments].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    let cumulative = m.initialBalance;
+    
+    return sortedPayments.map(p => {
+      const startMonthIndex = Math.floor(cumulative / MONTHLY_FEE);
+      const endMonthIndex = Math.floor((cumulative + p.amount - 1) / MONTHLY_FEE);
+      
+      let rangeText = "";
+      if (endMonthIndex >= startMonthIndex) {
+        const startDate = new Date(m.startDate);
+        startDate.setMonth(startDate.getMonth() + startMonthIndex);
+        const endDate = new Date(m.startDate);
+        endDate.setMonth(endDate.getMonth() + endMonthIndex);
+        
+        const startStr = `${(startDate.getMonth()+1).toString().padStart(2,'0')}/${startDate.getFullYear()}`;
+        const endStr = `${(endDate.getMonth()+1).toString().padStart(2,'0')}/${endDate.getFullYear()}`;
+        rangeText = startStr === endStr ? `Tháng ${startStr}` : `T${startStr} - T${endStr}`;
+      } else {
+        rangeText = "Cộng dồn phí";
+      }
+      
+      const result = { 
+        ...p, 
+        memberName: m.name, 
+        memberId: m.id,
+        rangeText
+      };
+      cumulative += p.amount;
+      return result;
+    });
+  }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-  if (allPayments.length === 0) {
+  if (paymentsWithRanges.length === 0) {
     return (
       <div className="max-w-6xl mx-auto text-center py-20 text-zinc-600">
         <ClipboardList size={48} className="mx-auto mb-4 opacity-30" />
@@ -647,8 +723,8 @@ function HistoryTab({ members }: { members: Member[] }) {
   }
 
   // Nhóm theo tháng
-  const grouped: Record<string, typeof allPayments> = {};
-  allPayments.forEach(p => {
+  const grouped: Record<string, typeof paymentsWithRanges> = {};
+  paymentsWithRanges.forEach(p => {
     const d = new Date(p.date);
     const key = `${(d.getMonth()+1).toString().padStart(2,'0')}/${d.getFullYear()}`;
     if (!grouped[key]) grouped[key] = [];
@@ -676,7 +752,12 @@ function HistoryTab({ members }: { members: Member[] }) {
                       <Users size={14} className="text-zinc-600" />
                     </div>
                     <div>
-                      <p className="font-bold text-sm">{p.memberName}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-bold text-sm">{p.memberName}</p>
+                        <span className="px-1.5 py-0.5 rounded-md bg-white/5 text-[9px] font-black text-zinc-500 border border-white/5 uppercase">
+                          {p.rangeText}
+                        </span>
+                      </div>
                       <p className="text-[10px] text-zinc-600">{new Date(p.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
                     </div>
                   </div>
