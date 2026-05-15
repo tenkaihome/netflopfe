@@ -29,6 +29,13 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+// Haptic feedback cho mobile
+const haptic = (ms: number | number[] = 10) => {
+  if (typeof navigator !== 'undefined' && navigator.vibrate) {
+    navigator.vibrate(ms);
+  }
+};
+
 export default function NetflopDashboard() {
   const [members, setMembers] = useState<Member[]>([]);
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
@@ -68,7 +75,8 @@ export default function NetflopDashboard() {
 
     try {
       await api.addPayment(selectedMember.id, amount);
-      await fetchMembers(); // Refresh data
+      haptic([10, 50, 10]);
+      await fetchMembers();
       setIsPaymentModalOpen(false);
       setSelectedMember(null);
       setPaymentAmount(MONTHLY_FEE.toString());
@@ -97,6 +105,7 @@ export default function NetflopDashboard() {
     if (!newMemberName.trim()) return;
     try {
       await api.addMember(newMemberName, new Date().toISOString().split('T')[0]);
+      haptic([10, 50, 10]);
       await fetchMembers();
       setIsAddModalOpen(false);
       setNewMemberName('');
@@ -483,7 +492,10 @@ function Modal({ children, onClose }: { children: React.ReactNode, onClose: () =
 
   const handleTouchEnd = (e: React.TouchEvent) => {
     const diff = e.changedTouches[0].clientY - touchStartY.current;
-    if (diff > 80) onClose();
+    if (diff > 80) {
+      haptic(15);
+      onClose();
+    }
   };
 
   return (
@@ -603,7 +615,7 @@ function MemberCard({ member, index, onAddPayment, onEdit }: { member: Member, i
 
       <div className="flex gap-2 relative">
         <button 
-          onClick={onAddPayment}
+          onClick={() => { haptic(); onAddPayment(); }}
           className="flex-[3] bg-primary hover:bg-red-700 text-white py-3.5 md:py-4 rounded-2xl text-xs md:text-sm font-black transition-all flex items-center justify-center gap-2 group/btn shadow-lg shadow-primary/10 active:scale-95"
         >
           <DollarSign size={16} className="group-hover/btn:scale-125 transition-transform" />
