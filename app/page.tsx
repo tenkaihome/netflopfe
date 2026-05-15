@@ -38,6 +38,7 @@ export default function NetflopDashboard() {
   const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [editForm, setEditForm] = useState({ name: "", initialBalance: "0", startDate: "" });
   const [isClient, setIsClient] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'members' | 'history'>('members');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newMemberName, setNewMemberName] = useState('');
@@ -50,10 +51,13 @@ export default function NetflopDashboard() {
 
   const fetchMembers = async () => {
     try {
+      setIsLoading(true);
       const data = await api.getMembers();
       setMembers(data);
     } catch (error) {
       console.error("Failed to fetch members:", error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -120,7 +124,14 @@ export default function NetflopDashboard() {
     return sum + (status.isOverdue ? Math.abs(status.balance) : 0);
   }, 0);
 
-  if (!isClient) return <div className="min-h-screen bg-black" />;
+  if (!isClient || isLoading) return (
+    <div className="min-h-screen bg-black flex items-center justify-center">
+      <div className="text-center">
+        <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+        <p className="text-zinc-500 text-sm font-bold uppercase tracking-wider">Đang tải dữ liệu...</p>
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-black text-white pb-24 md:pb-8 p-4 md:p-8 font-sans selection:bg-primary selection:text-white">
@@ -190,16 +201,12 @@ export default function NetflopDashboard() {
         <button onClick={() => setActiveTab('history')} className={cn("px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all", activeTab === 'history' ? "bg-primary text-white" : "bg-white/5 text-zinc-500 hover:bg-white/10")}>
           <ClipboardList size={14} className="inline mr-2 -mt-0.5" />Lịch sử thu
         </button>
-        {activeTab === 'members' && (
-          <button onClick={() => setIsAddModalOpen(true)} className="ml-auto bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-xl font-black text-xs transition-all active:scale-95 flex items-center gap-1">
-            <Plus size={16} />THÊM
-          </button>
-        )}
       </div>
 
       {/* Main Content */}
       {activeTab === 'members' ? (
-        <main className="max-w-6xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+        <main className="max-w-6xl mx-auto">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
           {members.map((member, index) => (
             <MemberCard 
               key={member.id} 
@@ -222,6 +229,21 @@ export default function NetflopDashboard() {
               }}
             />
           ))}
+
+          {/* Nút thêm thành viên - nằm trong grid */}
+          <motion.button
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: members.length * 0.05 }}
+            onClick={() => setIsAddModalOpen(true)}
+            className="glass group relative overflow-hidden rounded-[2rem] p-6 md:p-7 border-white/5 border-dashed border-2 hover:border-green-500/40 transition-all duration-500 flex flex-col items-center justify-center gap-3 min-h-[200px] cursor-pointer active:scale-95"
+          >
+            <div className="w-14 h-14 rounded-2xl bg-green-500/10 flex items-center justify-center border border-green-500/20 group-hover:scale-110 transition-transform">
+              <Plus size={28} className="text-green-500" />
+            </div>
+            <p className="font-black text-sm text-zinc-500 group-hover:text-green-500 transition-colors uppercase tracking-wider">Thêm thành viên</p>
+          </motion.button>
+          </div>
         </main>
       ) : (
         <HistoryTab members={members} />
