@@ -430,7 +430,7 @@ export default function NetflopDashboard() {
 
               <div className="flex gap-2 mt-4 sticky bottom-0">
                 <button 
-                  onClick={updateMember}
+                  onClick={() => { haptic(); updateMember(); }}
                   className="flex-1 bg-white text-black hover:bg-zinc-200 py-4 rounded-xl font-black text-lg transition-all active:scale-95"
                 >
                   LƯU THAY ĐỔI
@@ -464,7 +464,7 @@ export default function NetflopDashboard() {
                 />
               </div>
               <button 
-                onClick={addNewMember}
+                onClick={() => { haptic(); addNewMember(); }}
                 className="w-full bg-green-600 hover:bg-green-700 py-4 rounded-xl font-black text-lg transition-all active:scale-95"
               >
                 THÊM THÀNH VIÊN
@@ -622,7 +622,7 @@ function MemberCard({ member, index, onAddPayment, onEdit }: { member: Member, i
           THU TIỀN
         </button>
         <button 
-          onClick={onEdit}
+          onClick={() => { haptic(); onEdit(); }}
           className="flex-1 bg-white/5 hover:bg-zinc-800 rounded-2xl flex items-center justify-center transition-all border border-white/5 active:scale-95"
         >
           <Settings size={18} className="text-zinc-600" />
