@@ -752,13 +752,13 @@ function HistoryTab({ members }: { members: Member[] }) {
                       <Users size={14} className="text-zinc-600" />
                     </div>
                     <div>
-                      <div className="flex items-center gap-2">
-                        <p className="font-bold text-sm">{p.memberName}</p>
-                        <span className="px-1.5 py-0.5 rounded-md bg-white/5 text-[9px] font-black text-zinc-500 border border-white/5 uppercase">
+                      <p className="font-bold text-sm leading-tight mb-1">{p.memberName}</p>
+                      <div className="flex flex-col gap-1">
+                        <span className="w-fit px-1.5 py-0.5 rounded-md bg-white/5 text-[9px] font-black text-zinc-500 border border-white/5 uppercase">
                           {p.rangeText}
                         </span>
+                        <p className="text-[10px] text-zinc-600">{new Date(p.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
                       </div>
-                      <p className="text-[10px] text-zinc-600">{new Date(p.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
                     </div>
                   </div>
                   <p className="font-black text-green-500">+{formatCurrency(p.amount)}</p>
