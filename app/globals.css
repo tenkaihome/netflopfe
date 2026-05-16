@@ -39,32 +39,29 @@ body {
   box-shadow: 0 0 20px rgba(229, 9, 20, 0.2);
 }
 
-::-webkit-scrollbar {
-  width: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: #000;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #333;
-  border-radius: 10px;
+/* Hide scrollbar for a clean, professional look */
+.custom-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
 }
 
 .custom-scrollbar::-webkit-scrollbar {
-  width: 4px;
+  display: none; /* Chrome, Safari and Opera */
 }
 
-.custom-scrollbar::-webkit-scrollbar-track {
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.custom-scrollbar::-webkit-scrollbar-thumb {
+::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
+  border-radius: 20px;
 }
 
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: var(--primary);
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
 }
