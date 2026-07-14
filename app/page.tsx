@@ -222,36 +222,77 @@ export default function NetflopDashboard() {
             onClick={() => {
               haptic();
               const formatMY = (date: Date) => `${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()}`;
-              const now = new Date();
-              const nowStr = formatMY(now);
-
-              // Tìm ngày bắt đầu phổ biến nhất
-              const startDates = members.map(m => formatMY(new Date(m.startDate)));
-              const commonStart = startDates.reduce((a, b, i, arr) => 
-                (arr.filter(v => v === a).length >= arr.filter(v => v === b).length ? a : b), startDates[0]
-              );
-
-              let text = `Bill Netflix\n(${commonStart} - ${nowStr}):\n\n`;
               
-              const overdue = members.filter(m => calculateStatus(m).isOverdue);
+              // Get unpaid info for all overdue members
+              const overdueInfos = members
+                .filter(m => calculateStatus(m).isOverdue)
+                .map(m => {
+                  const status = calculateStatus(m);
+                  const monthsOwed = Math.ceil(Math.abs(status.balance) / MONTHLY_FEE);
+                  const start = new Date(m.startDate);
+                  
+                  const elapsed = Math.max(1, status.monthsElapsed);
+                  const unpaidEnd = new Date(start);
+                  unpaidEnd.setMonth(unpaidEnd.getMonth() + elapsed - 1);
+                  
+                  const unpaidStart = new Date(unpaidEnd);
+                  unpaidStart.setMonth(unpaidStart.getMonth() - (monthsOwed - 1));
+                  
+                  const rangeStr = monthsOwed === 1 
+                    ? formatMY(unpaidStart)
+                    : `${formatMY(unpaidStart)} - ${formatMY(unpaidEnd)}`;
+                    
+                  return {
+                    member: m,
+                    status,
+                    rangeStr,
+                    amount: Math.abs(status.balance)
+                  };
+                });
+
+              // Determine the most common unpaid range
+              let commonRange = "";
+              if (overdueInfos.length > 0) {
+                const counts: Record<string, number> = {};
+                overdueInfos.forEach(info => {
+                  counts[info.rangeStr] = (counts[info.rangeStr] || 0) + 1;
+                });
+                commonRange = Object.entries(counts).reduce((a, b) => b[1] > a[1] ? b : a)[0];
+              } else {
+                commonRange = formatMY(new Date());
+              }
+
+              let text = `Em/mình gửi bill Netflix tháng này nhé ạ\n(${commonRange}):\n\n`;
+              
+              // Sort/separate members: main group first, separate ones second
+              const mainGroup = overdueInfos.filter(info => info.rangeStr === commonRange);
+              const separateGroup = overdueInfos.filter(info => info.rangeStr !== commonRange);
+
+              mainGroup.forEach(info => {
+                text += `- ${info.member.name}: ${info.amount.toLocaleString('vi-VN')} đ\n`;
+              });
+
+              if (separateGroup.length > 0) {
+                separateGroup.forEach(info => {
+                  text += `- ${info.member.name}: ${info.amount.toLocaleString('vi-VN')} đ (Từ ${info.rangeStr})\n`;
+                });
+              }
+
               const paid = members.filter(m => !calculateStatus(m).isOverdue);
-
-              overdue.forEach(m => {
-                const status = calculateStatus(m);
-                const mStart = formatMY(new Date(m.startDate));
-                const amount = Math.abs(status.balance).toLocaleString('vi-VN');
-                text += `- ${m.name}: ${amount} đ`;
-                if (mStart !== commonStart) {
-                  text += ` (Từ ${mStart} - ${nowStr})`;
-                }
+              if (paid.length > 0) {
                 text += `\n`;
-              });
-
-              if (paid.length > 0) text += `\n`;
-
-              paid.forEach(m => {
-                text += `- ${m.name}: đã thu\n`;
-              });
+                paid.forEach(m => {
+                  const status = calculateStatus(m);
+                  if (status.monthsCovered > status.monthsElapsed) {
+                    const start = new Date(m.startDate);
+                    const coveredUntil = new Date(start);
+                    coveredUntil.setMonth(coveredUntil.getMonth() + status.monthsCovered - 1);
+                    text += `- ${m.name}: đã thu (đến ${formatMY(coveredUntil)})\n`;
+                  } else {
+                    text += `- ${m.name}: đã thu\n`;
+                  }
+                });
+              }
               
               setSummaryText(text.trim());
               setIsSummaryModalOpen(true);
@@ -586,6 +627,35 @@ function StatCard({ icon, label, value }: { icon: React.ReactNode, label: string
 function MemberCard({ member, index, onAddPayment, onEdit }: { member: Member, index: number, onAddPayment: () => void, onEdit: () => void }) {
   const status = calculateStatus(member);
   
+  const formatMY = (date: Date) => `${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()}`;
+  
+  // Calculate dynamic range
+  let statusText = "";
+  let isGreen = false;
+  if (status.isOverdue) {
+    const monthsOwed = Math.ceil(Math.abs(status.balance) / MONTHLY_FEE);
+    const start = new Date(member.startDate);
+    const elapsed = Math.max(1, status.monthsElapsed);
+    const unpaidEnd = new Date(start);
+    unpaidEnd.setMonth(unpaidEnd.getMonth() + elapsed - 1);
+    const unpaidStart = new Date(unpaidEnd);
+    unpaidStart.setMonth(unpaidStart.getMonth() - (monthsOwed - 1));
+    
+    statusText = monthsOwed === 1 
+      ? `Chưa thu: ${formatMY(unpaidStart)}`
+      : `Chưa thu: ${formatMY(unpaidStart)} - ${formatMY(unpaidEnd)}`;
+  } else {
+    isGreen = true;
+    if (status.monthsCovered === 0) {
+      statusText = "Chưa đóng";
+    } else {
+      const start = new Date(member.startDate);
+      const coveredUntil = new Date(start);
+      coveredUntil.setMonth(coveredUntil.getMonth() + status.monthsCovered - 1);
+      statusText = `Đã thu đến: ${formatMY(coveredUntil)}`;
+    }
+  }
+
   return (
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
@@ -602,7 +672,8 @@ function MemberCard({ member, index, onAddPayment, onEdit }: { member: Member, i
           </div>
           <div>
             <h3 className="font-black text-lg md:text-xl tracking-tight group-hover:text-primary transition-colors truncate max-w-[120px] md:max-w-none">{member.name}</h3>
-            <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-tighter">Từ: {new Date(member.startDate).toLocaleDateString('vi-VN')}</p>
+            <p className={cn("text-[10px] font-bold uppercase tracking-tighter", isGreen ? "text-green-500" : "text-red-500")}>{statusText}</p>
+            <p className="text-[9px] text-zinc-600 font-medium leading-none mt-0.5">Từ: {new Date(member.startDate).toLocaleDateString('vi-VN')}</p>
           </div>
         </div>
         
@@ -612,7 +683,7 @@ function MemberCard({ member, index, onAddPayment, onEdit }: { member: Member, i
             ? "bg-red-500/10 text-red-500 border-red-500/20" 
             : "bg-green-500/10 text-green-500 border-green-500/20"
         )}>
-          {status.isOverdue ? "Nợ" : "Dư"}
+          {status.isOverdue ? "Chưa thu" : "Dư"}
         </div>
       </div>
 
